@@ -9,6 +9,52 @@ from sqlmodel import Field, SQLModel, create_engine
 logger = logging.getLogger("app")
 logger.setLevel(logging.INFO)
 
+
+def _parse_azure_postgres_connection_string(raw_connection_string: str) -> dict[str, str]:
+    """Parse connection strings from either azd or portal formats.
+
+    Supported formats:
+    - Space-delimited: "dbname=... host=... port=... sslmode=... user=... password=..."
+    - Semicolon-delimited: "Database=...;Server=...;User Id=...;Password=..."
+    """
+    details: dict[str, str] = {}
+
+    if ";" in raw_connection_string:
+        # Azure portal style connection string.
+        parts = [part.strip() for part in raw_connection_string.split(";") if part.strip()]
+        for part in parts:
+            if "=" not in part:
+                continue
+            key, value = part.split("=", 1)
+            normalized_key = key.strip().lower().replace(" ", "")
+            details[normalized_key] = value.strip()
+
+        return {
+            "dbname": details.get("database", ""),
+            "host": details.get("server", ""),
+            "port": details.get("port", "5432"),
+            "sslmode": details.get("sslmode", "require"),
+            "user": details.get("userid", details.get("user", "")),
+            "password": details.get("password", ""),
+        }
+
+    # azd style connection string.
+    parts = [part.strip() for part in raw_connection_string.split() if part.strip()]
+    for part in parts:
+        if "=" not in part:
+            continue
+        key, value = part.split("=", 1)
+        details[key.strip().lower()] = value.strip()
+
+    return {
+        "dbname": details.get("dbname", ""),
+        "host": details.get("host", ""),
+        "port": details.get("port", "5432"),
+        "sslmode": details.get("sslmode", "require"),
+        "user": details.get("user", ""),
+        "password": details.get("password", ""),
+    }
+
 sql_url = ""
 if os.getenv("WEBSITE_HOSTNAME"):
     logger.info("Connecting to Azure PostgreSQL Flexible server based on AZURE_POSTGRESQL_CONNECTIONSTRING...")
@@ -16,8 +62,7 @@ if os.getenv("WEBSITE_HOSTNAME"):
     if env_connection_string is None:
         logger.info("Missing environment variable AZURE_POSTGRESQL_CONNECTIONSTRING")
     else:
-        # Parse the connection string
-        details = dict(item.split('=') for item in env_connection_string.split())
+        details = _parse_azure_postgres_connection_string(env_connection_string)
 
         # Properly format the URL for SQLAlchemy
         sql_url = (
