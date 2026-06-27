@@ -16,6 +16,7 @@ jobs:
     build:
       runs-on: ubuntu-latest
       env:
+        ENABLE_AZD_PROVISION: ${{ vars.ENABLE_AZD_PROVISION || 'false' }}
         AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID || secrets.AZURE_CLIENT_ID || secrets.AZUREAPPSERVICE_CLIENTID_3E9956EC7DB34D4AA95D3CBE9889B136 }}
         AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID || secrets.AZURE_TENANT_ID || secrets.AZUREAPPSERVICE_TENANTID_188C1F33C8334869BEB2CDE4FE752237 }}
         AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID || secrets.AZURE_SUBSCRIPTION_ID || secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_59CC61F9618D44C6B2AD6C34A739BE5A }}
@@ -40,6 +41,11 @@ jobs:
             set -euo pipefail
 
             configured="true"
+
+            if [[ "${ENABLE_AZD_PROVISION:-false}" != "true" ]]; then
+              echo "ENABLE_AZD_PROVISION is not true. Skipping azd provision/deploy in this workflow."
+              configured="false"
+            fi
 
             if [[ -z "${AZURE_ENV_NAME:-}" ]]; then
               echo "Missing AZURE_ENV_NAME. Set repository variable or secret AZURE_ENV_NAME."
