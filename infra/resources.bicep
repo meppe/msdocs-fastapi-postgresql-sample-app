@@ -181,6 +181,7 @@ resource web 'Microsoft.Web/sites@2024-11-01' = {
     name: 'appsettings'
     properties: {
         SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
+        APPLICATIONINSIGHTS_CONNECTION_STRING: applicationInsightsResources.outputs.APPLICATIONINSIGHTS_CONNECTION_STRING
         AZURE_POSTGRESQL_CONNECTIONSTRING: 'dbname=${pythonAppDatabase.name} host=${postgresServer.name}.postgres.database.azure.com port=5432 sslmode=require user=${postgresServer.properties.administratorLogin} password=${databasePassword}'
         SECRET_KEY: secretKey
         AZURE_REDIS_CONNECTIONSTRING: 'rediss://:${redisCache.listKeys().primaryKey}@${redisCache.name}.redis.cache.windows.net:6380/0'

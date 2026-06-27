@@ -3,7 +3,6 @@ import os
 import pathlib
 from datetime import datetime
 
-from azure.monitor.opentelemetry import configure_azure_monitor
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -17,7 +16,11 @@ from .models import Restaurant, Review, engine
 logger = logging.getLogger("app")
 logger.setLevel(logging.INFO)
 if os.getenv("APPLICATIONINSIGHTS_CONNECTION_STRING"):
-    configure_azure_monitor()
+    try:
+        from azure.monitor.opentelemetry import configure_azure_monitor
+        configure_azure_monitor()
+    except ImportError:
+        logger.warning("APPLICATIONINSIGHTS_CONNECTION_STRING is set, but azure-monitor-opentelemetry is not installed")
 
 
 # Setup FastAPI app:
