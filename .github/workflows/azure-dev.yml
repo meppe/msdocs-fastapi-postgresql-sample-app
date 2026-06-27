@@ -31,8 +31,8 @@ jobs:
           shell: bash
           run: |
             curl -fsSL https://aka.ms/install-azd.sh | bash
-            echo "$HOME/.azd/bin" >> "$GITHUB_PATH"
-            "$HOME/.azd/bin/azd" version
+            command -v azd
+            azd version
 
         - name: Log in with Azure (Federated Credentials)
           if: ${{ env.AZURE_CLIENT_ID != '' }}
