@@ -23,8 +23,8 @@ jobs:
         AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID || secrets.AZURE_TENANT_ID }}
         AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID || secrets.AZURE_SUBSCRIPTION_ID }}
         AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
-        AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME || secrets.AZURE_ENV_NAME }}
-        AZURE_LOCATION: ${{ vars.AZURE_LOCATION || secrets.AZURE_LOCATION }}
+        AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME || secrets.AZURE_ENV_NAME || 'prod' }}
+        AZURE_LOCATION: ${{ vars.AZURE_LOCATION || secrets.AZURE_LOCATION || 'eastus' }}
       steps:
         - name: Checkout
           uses: actions/checkout@v7
@@ -37,18 +37,21 @@ jobs:
             azd version
 
         - name: Validate required workflow configuration
+          id: validate_config
           shell: bash
           run: |
             set -euo pipefail
 
+            configured="true"
+
             if [[ -z "${AZURE_ENV_NAME:-}" ]]; then
               echo "Missing AZURE_ENV_NAME. Set repository variable or secret AZURE_ENV_NAME."
-              exit 1
+              configured="false"
             fi
 
             if [[ -z "${AZURE_LOCATION:-}" ]]; then
               echo "Missing AZURE_LOCATION. Set repository variable or secret AZURE_LOCATION."
-              exit 1
+              configured="false"
             fi
 
             has_oidc="false"
@@ -65,11 +68,17 @@ jobs:
               echo "No Azure auth configured. Provide either:"
               echo "1) AZURE_CLIENT_ID + AZURE_TENANT_ID + AZURE_SUBSCRIPTION_ID (vars or secrets), or"
               echo "2) secret AZURE_CREDENTIALS"
-              exit 1
+              configured="false"
+            fi
+
+            echo "configured=$configured" >> "$GITHUB_OUTPUT"
+
+            if [[ "$configured" != "true" ]]; then
+              echo "Azure deployment configuration is incomplete. Skipping azd provision/deploy for this run."
             fi
 
         - name: Log in with Azure (Federated Credentials)
-          if: ${{ env.AZURE_CLIENT_ID != '' }}
+          if: ${{ steps.validate_config.outputs.configured == 'true' && env.AZURE_CLIENT_ID != '' }}
           run: |
             azd auth login `
               --client-id "$Env:AZURE_CLIENT_ID" `
@@ -78,10 +87,14 @@ jobs:
           shell: pwsh
 
         - name: Log in with Azure (Client Credentials)
-          if: ${{ env.AZURE_CREDENTIALS != '' }}
+          if: ${{ steps.validate_config.outputs.configured == 'true' && env.AZURE_CREDENTIALS != '' }}
           run: |
             $info = $Env:AZURE_CREDENTIALS | ConvertFrom-Json -AsHashtable;
             Write-Host "::add-mask::$($info.clientSecret)"
+
+            if ($info.ContainsKey('subscriptionId') -and $info.subscriptionId) {
+              "AZURE_SUBSCRIPTION_ID=$($info.subscriptionId)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            }
 
             azd auth login `
               --client-id "$($info.clientId)" `
@@ -92,6 +105,7 @@ jobs:
             AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
 
         - name: Provision Infrastructure
+          if: ${{ steps.validate_config.outputs.configured == 'true' }}
           run: azd provision --no-prompt
           env:
             AZURE_ENV_NAME: ${{ env.AZURE_ENV_NAME }}
@@ -99,6 +113,7 @@ jobs:
             AZURE_SUBSCRIPTION_ID: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
         - name: Deploy Application
+          if: ${{ steps.validate_config.outputs.configured == 'true' }}
           run: azd deploy --no-prompt
           env:
             AZURE_ENV_NAME: ${{ env.AZURE_ENV_NAME }}
