@@ -1,6 +1,10 @@
 #!/bin/bash
-set -e
-python3 -m pip install --upgrade pip
-python3 -m pip install -e src
-python3 src/fastapi_app/seed_data.py
-python3 -m gunicorn fastapi_app:app -c src/gunicorn.conf.py
+set -euo pipefail
+
+# Run from the script directory so local imports like my_uvicorn_worker resolve without editable installs.
+cd "$(dirname "$0")"
+
+# Seed best-effort; app should still boot even if the DB is temporarily unavailable.
+python3 fastapi_app/seed_data.py || echo "Seed step failed; starting app anyway"
+
+exec python3 -m gunicorn fastapi_app:app -c gunicorn.conf.py

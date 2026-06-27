@@ -4,7 +4,7 @@ import pathlib
 from datetime import datetime
 
 from azure.monitor.opentelemetry import configure_azure_monitor
-from fastapi import Depends, FastAPI, Form, Request, status
+from fastapi import Depends, FastAPI, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -83,6 +83,9 @@ async def add_restaurant(
 @app.get("/details/{id}", response_class=HTMLResponse)
 async def details(request: Request, id: int, session: Session = Depends(get_db_session)):
     restaurant = session.exec(select(Restaurant).where(Restaurant.id == id)).first()
+    if restaurant is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Restaurant not found")
+
     reviews = session.exec(select(Review).where(Review.restaurant == id)).all()
 
     review_count = len(reviews)
@@ -110,6 +113,10 @@ async def add_review(
     review_text: str = Form(...),
     session: Session = Depends(get_db_session),
 ):
+    restaurant = session.exec(select(Restaurant).where(Restaurant.id == id)).first()
+    if restaurant is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Restaurant not found")
+
     review = Review()
     review.restaurant = id
     review.review_date = datetime.now()
